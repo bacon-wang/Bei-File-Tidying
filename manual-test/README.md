@@ -1,46 +1,22 @@
-# Bei File Tidying manual test
+# 手动测试场景
 
-This directory is an isolated test area. Its paths contain only ASCII characters, and it does not use the real folders from the project root configuration.
+这是一套独立、路径不含中文的小型测试数据。感知根目录为 `sense-root/`，待整理目录为 `sense-root/Inbox/`。项目根目录的 `application.properties.example` 已指向这里；克隆项目后，先复制为 `application.properties`。要测试真实 AI，再填入自己的第三方 `ai.api-key`。
 
-## Test data
+已有分类目录：`Pictures/`、`Documents/`、`Work/`、`Archives/`。`Inbox/` 中故意放错了四个文件：
 
-The sensed root is `sense-root/` and the target folder is `sense-root/Inbox/`.
+- `trip-photo.png`：图片放在收件箱。
+- `meeting-notes.md`：项目笔记放在收件箱。
+- `Temp/invoice.pdf`：发票放在临时目录。
+- `Unsorted/project-backup.zip`：备份放在未分类目录。
 
-Existing destination folders:
+`Inbox/.hidden-test-file` 用于验证隐藏文件被跳过。macOS 若生成 `.DS_Store`，同样会被跳过；这类系统文件不会提交到 Git。
 
-- `Pictures/`
-- `Documents/`
-- `Work/`
-- `Archives/`
+在 IntelliJ IDEA 中，以 `com.example.tidying.FileTidyingAssistant` 为主类创建 Application 配置，工作目录设为 `$PROJECT_DIR$`，使用 JDK 17 或更新版本。运行后先检查目录树和整理计划，确认后输入 `APPLY`。默认四个文件只需一次 AI 批量请求，模型可选择已有目录或新建合理的分类目录。
 
-The target contains a few deliberately misplaced files:
+整理后，从项目根目录执行以下命令即可撤销，不会再请求 AI：
 
-- `Inbox/trip-photo.png` — image in the inbox
-- `Inbox/meeting-notes.md` — project notes in the inbox
-- `Inbox/Temp/invoice.pdf` — invoice in an unsuitable temporary folder
-- `Inbox/Unsorted/project-backup.zip` — backup in an unsorted folder
-- `Inbox/.DS_Store` — hidden metadata file that should be ignored
+```bash
+java -jar target/bei-file-tidying-0.2.0.jar --undo-last
+```
 
-## Run in IntelliJ IDEA
-
-In this workspace, the project root `application.properties` already points to this test area and keeps the existing third-party API settings. If you clone the repository elsewhere, copy `application.properties.example` to `application.properties` and add your API key.
-
-1. Open **Run > Edit Configurations** and create or edit an **Application** configuration.
-2. Set the main class to `com.example.tidying.FileTidyingAssistant`.
-3. Set **Working directory** to `$PROJECT_DIR$`.
-4. Use a Java 17 or newer runtime and run the configuration.
-5. Review the printed plan. Enter the exact text `APPLY` only when the plan is acceptable.
-
-The default tree depth is 3. The four files are sent in one batch with the current project settings. To undo the last applied run without calling AI again, run `--undo-last` or enter `UNDO` at the prompt. Undo restores the source files and removes newly created destination folders when they are empty.
-
-The application reads the project root configuration and only scans `manual-test/sense-root/Inbox`, so the real download folders are not involved.
-
-After applying, the usual result is:
-
-- `trip-photo.png` under `Pictures/`
-- `meeting-notes.md` under `Work/` or another AI-selected suitable folder
-- `invoice.pdf` under `Documents/`
-- `project-backup.zip` under `Archives/`
-- `.DS_Store` still under `Inbox/`
-
-The AI may choose a different sensible destination. Check the printed plan before typing `APPLY`.
+撤销会把文件放回原位，恢复本次删除的空目录，并清理本次新建且已空的目录。也可在程序提示时输入 `UNDO`，但命令行参数可以跳过 AI 分析等待。
