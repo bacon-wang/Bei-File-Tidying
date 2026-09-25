@@ -1,0 +1,12 @@
+sense.root=./manual-test/sense-root
+target.dir=./manual-test/sense-root/Inbox
+max.file.mb=10
+sense.tree-depth=3
+ai.base-url=https://www.fhl.mom
+ai.api-key=
+ai.model=gpt-6-luna
+ai.reasoning-effort=medium
+ai.wire-api=responses
+ai.batch-size=10
+ai.batch-concurrency=2
+tidy.delete-empty-directories=true
