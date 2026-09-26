@@ -1,6 +1,6 @@
 # 架构文档
 
-更新：2026-09-26｜实现基线：0.2.0（分层分类迭代）
+更新：2026-09-26｜实现基线：0.3.0（分层分类迭代）
 
 ## 1. 技术与结构
 
@@ -16,14 +16,18 @@ Java 17 + Maven，运行时使用 JDK 标准库，测试使用 JUnit 5。当前�
 | 计划校验 | `buildPlan`、`resolveDestination` | AI 建议 → 可展示的逐文件计划 |
 | 执行与清理 | `execute`、`deleteEmptyDirectories` | 已确认计划 → 文件移动及空目录清理 |
 | 历史与撤销 | `writeHistory`、`undoLast` | 最近一次操作记录 → 反向恢复 |
+| GUI | `FileTidyingGui` | Swing 操作界面 → 复用规划、执行和撤销流程 |
+| AI 后端 | `AiBackendServer` | 无状态 HTTP 代理 → 上游兼容接口 |
 
 ## 2. 主流程
 
 ```mermaid
 flowchart TD
-    A[加载配置并校验目录] --> B{启动参数}
+    A[加载配置并校验目录] --> B{启动方式}
+    B -->|GUI| V[选择目录并显示实时日志]
     B -->|--undo-last| U[读取最近记录并撤销]
-    B -->|普通启动| C[扫描目录和目标文件]
+    B -->|命令行| C[扫描目录和目标文件]
+    V --> C
     C --> L{本地规则是否明确}
     L -->|是| D[校验建议]
     L -->|否| K{有效缓存或编号系列}
@@ -47,7 +51,7 @@ flowchart TD
 ## 3. AI 接口与计划
 
 - 固定线程池控制批次并发，默认 10 文件 / 批、2 批并发，请求超时 90 秒。
-- 默认使用第三方 Responses 接口，也有 Chat Completions 分支；真实测试范围见[测试文档](testing.md)。
+- 默认使用第三方 Responses 接口，也有 Chat Completions 分支；客户端还可通过 `ai.backend-url` 调用无状态后端。后端由 `AiBackendServer` 提供 `/health`、`/responses` 和 `/chat/completions`，只在请求期间持有上游密钥。
 - Responses 使用 SSE；当前收齐响应后解析文本，终端输出阶段状态，不逐 token 展示。
 - 本地规则仅处理明确的发票、备份、旅行照片，要求唯一根级分类目录且无待选择的分类子目录；主题子目录和常见项目标记目录交给 AI。
 - 编号系列要求同目录、同扩展名、共同主题前缀、至少 8 个成员。模型看到全部成员名；仅返回 `uniform=true` 且逐成员条件仍成立时展开。组拒绝或出错后回到逐文件路径。
@@ -60,12 +64,13 @@ flowchart TD
 
 ## 4. 本地数据与边界
 
-- 配置示例：[application.properties.example](../application.properties.example)；实际配置从进程工作目录读取。
+- 配置示例：[application.properties.example](../application.properties.example) 和 [server.properties.example](../server.properties.example)；实际配置从进程工作目录读取。
 - 历史位于 `sense.root/.bei-file-tidying/history/last-operation.json`，只保留最近一次操作，记录相对路径、文件大小、修改时间及创建 / 删除的目录。
 - 分类缓存位于 `sense.root/.bei-file-tidying/classifications.properties`；只存有效建议，使用完整目录列表和接口配置的摘要及源文件签名校验。签名含文本前 1,200 字符的本地摘要；密钥只参与摘要计算。`--refresh` 重算；缓存命中仍经 `buildPlan` 校验。
 - 历史通过临时文件替换写入，文件系统支持时采用原子替换；移动失败逐项报告，不提供整批事务保证。
 - 撤销反向移动文件；依据大小和修改时间判断文件是否变化，不使用内容哈希。原位置冲突、目标丢失或已变化时不覆盖。
 - 目录树跳过隐藏目录及符号链接目录；文件扫描仅按文件名过滤隐藏文件，尚未统一排除隐藏父目录。
-- 目的地和撤销路径拒绝绝对路径、`.` / `..`、保留目录及已存在的符号链接祖先；执行前再次检查源路径和历史记录目录。并发路径替换、严格 JSON 校验和中断恢复仍待完善。
+- 目的地和撤销路径拒绝绝对路径、`.` / `..`、保留目录及已存在的符号链接祖先；执行前再次检查源路径和历史记录目录。
+- GUI 当前使用 Swing，开发者模式显示实时阶段日志；后端无数据库、账号、用量持久化和鉴权，适合本机或受控网络。并发路径替换、严格 JSON 校验和中断恢复仍待完善。
 
 相关文档：[需求](requirements.md) · [测试](testing.md) · [计划](project-plan.md)

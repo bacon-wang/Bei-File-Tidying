@@ -4,3 +4,4 @@ target/
 application.properties
 .DS_Store
 .bei-file-tidying/
+server.properties

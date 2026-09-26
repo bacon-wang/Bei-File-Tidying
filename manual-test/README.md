@@ -16,7 +16,7 @@
 整理后，从项目根目录执行以下命令即可撤销，不会再请求 AI：
 
 ```bash
-java -jar target/bei-file-tidying-0.2.0.jar --undo-last
+java -jar target/bei-file-tidying-0.3.0.jar --undo-last
 ```
 
 撤销会把文件放回原位，恢复本次删除的空目录，并清理本次新建且已空的目录。也可在程序提示时输入 `UNDO`，但命令行参数可以跳过 AI 分析等待。

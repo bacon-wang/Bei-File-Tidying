@@ -43,7 +43,14 @@ public final class FileTidyingAssistant {
 
   record Config(Path senseRoot, Path target, long maxBytes, String baseUrl, String apiKey, String model,
                 String reasoningEffort, String wireApi, int treeDepth, int batchSize,
-                int batchConcurrency, boolean deleteEmptyDirectories, int maxRequests, int maxPromptChars) {
+                int batchConcurrency, boolean deleteEmptyDirectories, int maxRequests, int maxPromptChars,
+                boolean backendMode) {
+    Config(Path senseRoot, Path target, long maxBytes, String baseUrl, String apiKey, String model,
+           String reasoningEffort, String wireApi, int treeDepth, int batchSize,
+           int batchConcurrency, boolean deleteEmptyDirectories, int maxRequests, int maxPromptChars) {
+      this(senseRoot, target, maxBytes, baseUrl, apiKey, model, reasoningEffort, wireApi, treeDepth,
+          batchSize, batchConcurrency, deleteEmptyDirectories, maxRequests, maxPromptChars, false);
+    }
     Config(Path senseRoot, Path target, long maxBytes, String baseUrl, String apiKey, String model,
            String reasoningEffort, String wireApi) {
       this(senseRoot, target, maxBytes, baseUrl, apiKey, model, reasoningEffort, wireApi,
@@ -59,13 +66,16 @@ public final class FileTidyingAssistant {
         }
       }
       String home = System.getProperty("user.home");
-      String baseUrl = setting(p, "ai.base-url", "https://www.fhl.mom").replaceAll("/+$", "");
+      String backendUrl = setting(p, "ai.backend-url", "");
+      boolean backendMode = !backendUrl.isBlank();
+      String baseUrl = (backendMode ? backendUrl : setting(p, "ai.base-url", "https://www.fhl.mom"))
+          .replaceAll("/+$", "");
       return new Config(
           Path.of(p.getProperty("sense.root", home)),
           Path.of(p.getProperty("target.dir", home + "/Downloads")),
           Long.parseLong(p.getProperty("max.file.mb", "10")) * 1024 * 1024,
           baseUrl,
-          p.getProperty("ai.api-key", ""),
+          backendMode ? "" : p.getProperty("ai.api-key", ""),
           setting(p, "ai.model", "gpt-6-luna"),
           setting(p, "ai.reasoning-effort", "medium"),
           setting(p, "ai.wire-api", "responses"),
@@ -74,7 +84,7 @@ public final class FileTidyingAssistant {
           integer(p, "ai.batch-concurrency", 2, 1, 8),
           Boolean.parseBoolean(setting(p, "tidy.delete-empty-directories", "true")),
           integer(p, "ai.max-requests", 20, 0, 1000),
-          integer(p, "ai.max-prompt-chars", 12000, 4096, 100000));
+          integer(p, "ai.max-prompt-chars", 12000, 4096, 100000), backendMode);
     }
 
     private static String setting(Properties p, String key, String fallback) {
@@ -154,9 +164,12 @@ public final class FileTidyingAssistant {
   }
 
   static void validateAiConfig(Config config) throws IOException {
-    if (config.apiKey().isBlank()) return;
+    if (config.apiKey().isBlank() && !config.backendMode()) return;
     try {
-      URI.create(config.baseUrl() + "/" + apiPath(config));
+      URI uri = URI.create(config.baseUrl() + "/" + apiPath(config));
+      if (!"http".equalsIgnoreCase(uri.getScheme()) && !"https".equalsIgnoreCase(uri.getScheme())) {
+        throw new IllegalArgumentException("HTTP scheme required");
+      }
     } catch (IllegalArgumentException e) {
       throw new IOException("ai.base-url 不是有效的 HTTP 地址: " + config.baseUrl(), e);
     }
@@ -268,7 +281,7 @@ public final class FileTidyingAssistant {
           plans.put(file, new Plan(file, file, "文件仍在变化或不是普通文件", "FAILED"));
           continue;
         }
-        Classification local = config.apiKey().isBlank()
+        Classification local = config.apiKey().isBlank() && !config.backendMode()
             ? new Classification(fallbackDestination(file, root, directories), null, "未配置 API Key，按扩展名建议分类目录")
             : localClassification(file, root, config.target().toAbsolutePath().normalize(), directories);
         if (local != null) {
@@ -702,15 +715,14 @@ public final class FileTidyingAssistant {
         + "Relevant existing directories (partial):\n"
         + directoryContext(inputs.keySet(), root, directories) + "Input files:\n" + String.join("", inputs.values());
     if (prompt.length() > config.maxPromptChars()) throw new IOException("单次输入超过字符预算");
-    HttpRequest request = HttpRequest.newBuilder(URI.create(config.baseUrl() + "/" + apiPath(config)))
+    HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(config.baseUrl() + "/" + apiPath(config)))
         .timeout(Duration.ofSeconds(90))
-        .header("Authorization", "Bearer " + config.apiKey())
         .header("Content-Type", "application/json")
-        .POST(HttpRequest.BodyPublishers.ofString(requestBody(config, prompt)))
-        .build();
+        .POST(HttpRequest.BodyPublishers.ofString(requestBody(config, prompt)));
+    if (!config.backendMode()) request.header("Authorization", "Bearer " + config.apiKey());
     int number = stats.reserve(prompt.length(), retry);
     status("正在等待 AI 结果：请求 " + number + "/" + config.maxRequests() + "，" + inputs.size() + " 个文件，输入 " + prompt.length() + " 字符");
-    HttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+    HttpResponse<String> response = HttpClient.newHttpClient().send(request.build(), HttpResponse.BodyHandlers.ofString());
     stats.recordUsage(response.body());
     status("AI 已返回结果 (HTTP " + response.statusCode() + ")，请求 " + number);
     if (response.statusCode() / 100 != 2) {
@@ -1207,9 +1219,16 @@ public final class FileTidyingAssistant {
     return new History(moved, deleted, created, undone);
   }
 
+  private static volatile java.util.function.Consumer<String> statusListener;
+
+  static void setStatusListener(java.util.function.Consumer<String> listener) { statusListener = listener; }
+
   static void status(String message) {
-    System.out.printf("[%s] %s%n", LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")), message);
+    String line = "[" + LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")) + "] " + message;
+    System.out.println(line);
     System.out.flush();
+    java.util.function.Consumer<String> listener = statusListener;
+    if (listener != null) listener.accept(line);
   }
 
   static boolean isAiAuthenticationFailure(String reason) {

@@ -17,19 +17,33 @@ Bei File Tidying 感知一个根目录的文件夹结构，把目标文件夹中
 cp application.properties.example application.properties
 ./mvnw clean test
 ./mvnw package
-java -jar target/bei-file-tidying-0.2.0.jar
+java -jar target/bei-file-tidying-0.3.0.jar
 ```
 
 Windows 下用 `mvnw.cmd` 代替 `./mvnw`。配置文件必须位于运行时的工作目录；上面的命令应从项目根目录运行。
 
-示例配置指向 `manual-test/sense-root`，可以先用这套隔离数据查看计划。要调用真实 AI，在本地 `application.properties` 填写第三方平台的 `ai.api-key`。密钥留空时，程序使用扩展名规则。随后可修改 `sense.root` 和 `target.dir` 指向自己的目录；目标目录必须位于感知根目录内。
+示例配置指向 `manual-test/sense-root`，可以先用这套隔离数据查看计划。客户端可以直接配置第三方接口，也可以填写 `ai.backend-url` 调用无状态后端；使用后端时客户端不保存 API Key。密钥留空且未配置后端时，程序使用扩展名规则。随后可修改 `sense.root` 和 `target.dir` 指向自己的目录；目标目录必须位于感知根目录内。
+
+
+## 启动无状态 AI 后端
+
+后端只负责转发 AI 请求，不保存账号、用量或文件历史。它读取 `server.properties`，真实密钥建议通过环境变量注入：
+
+```bash
+cp server.properties.example server.properties
+export BEI_AI_API_KEY='your-third-party-key'
+java -cp target/bei-file-tidying-0.3.0.jar com.example.tidying.AiBackendServer
+```
+
+客户端的 `application.properties` 设置 `ai.backend-url=http://127.0.0.1:8787` 后即可通过后端请求；后端提供 `/health`、`/responses` 和 `/chat/completions`。当前后端是无状态代理，数据库、账号、用量管理和鉴权暂不包含在 MVP 中。
 
 ## 在 IntelliJ IDEA 中运行
 
 1. 用 IntelliJ IDEA 打开项目目录或 `pom.xml`，选择 JDK 17 或更新版本。
 2. 按上面的步骤创建并填写本地 `application.properties`。
 3. 创建 Application 运行配置，主类为 `com.example.tidying.FileTidyingAssistant`，工作目录为项目根目录。
-4. 查看整理计划，仅在确认后输入完整的 `APPLY`；其他输入会取消。
+4. 要运行 GUI，另建一个 Application 配置，主类为 `com.example.tidying.FileTidyingGui`；窗口中的开发者模式会显示阶段日志。
+5. 查看整理计划，仅在确认后输入完整的 `APPLY`；其他输入会取消。
 
 可在 `application.properties` 调整目录树深度、批次大小、并发批次数和空目录清理：
 
@@ -59,7 +73,7 @@ tidy.delete-empty-directories=true
 有效的 AI 建议缓存在 `sense.root/.bei-file-tidying/classifications.properties`，取消执行后再次分析也可复用。缓存按文件大小、修改时间、文件标识、文本前段摘要、完整目录结构、目标目录、模型与密钥摘要校验；命中后仍重新检查目的地安全与同名冲突。缓存仅保存分类建议及截短的理由，不保存 API Key 原文或文件正文；文件内容前段会在本地读取以校验缓存。使用 `--refresh` 可跳过并替换当前缓存：
 
 ```bash
-java -jar target/bei-file-tidying-0.2.0.jar --refresh
+java -jar target/bei-file-tidying-0.3.0.jar --refresh
 ```
 
 已有配置无需修改，新参数缺省即生效。`ai.max-requests=0` 可禁止本次 AI 请求，未被本地规则或缓存处理的文件会留待确认。字符预算不等于 token 或费用限额。
@@ -69,9 +83,9 @@ java -jar target/bei-file-tidying-0.2.0.jar --refresh
 成功整理会在 `sense.root/.bei-file-tidying/history/last-operation.json` 保存最近一次操作。也可以直接使用 `--undo-last` 撤销，不需要再次请求 AI：
 
 ```bash
-java -jar target/bei-file-tidying-0.2.0.jar --undo-last
+java -jar target/bei-file-tidying-0.3.0.jar --undo-last
 ```
 
 撤销会恢复本次删除的空目录，并清理本次新建且撤销后为空的目标目录。原位置已有文件、目标文件丢失或已修改时会保留当前文件并报告冲突。
 
-`application.properties`、IDEA 配置、构建产物、整理历史和分类缓存不会提交到 Git。可重复的测试数据和说明位于 [manual-test](manual-test/README.md)。
+`application.properties`、`server.properties`、IDEA 配置、构建产物、整理历史和分类缓存不会提交到 Git。可重复的测试数据和说明位于 [manual-test](manual-test/README.md)。

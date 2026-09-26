@@ -1,0 +1,5 @@
+# 后端服务示例配置。真实密钥建议通过 BEI_AI_API_KEY 环境变量注入。
+server.host=127.0.0.1
+server.port=8787
+ai.base-url=https://www.fhl.mom
+ai.api-key=
