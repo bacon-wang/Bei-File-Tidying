@@ -14,7 +14,7 @@ Windows 使用 `mvnw.cmd`。IDEA 中可在 Maven 面板运行 `verify`，或运�
 
 ## 2. 自动化覆盖
 
-本轮自动化结果：**14 项通过，0 失败，0 错误**；真实 AI 整理和撤销验证见下文。
+本轮自动化结果：**29 项通过，0 失败，0 错误**；真实 AI 整理和撤销验证见下文。
 
 | 用例 | 已验证内容 | 对应需求 |
 | --- | --- | --- |
@@ -24,8 +24,10 @@ Windows 使用 `mvnw.cmd`。IDEA 中可在 Maven 面板运行 `verify`，或运�
 | `undoRemovesNewlyCreatedDestinationDirectories` | 创建嵌套目的地，撤销后恢复文件并清理新目录 | F08 |
 | `smallMessyFolderIsPlannedAndTidied` | 4 文件仅发 1 次模拟请求、分类移动、隐藏文件保留、空目录删除及撤销 | F03、F04、F07、F08 |
 | `EfficientPlanningTest`（9 项） | 本地分流、元数据不含正文、按需摘要、无效响应有限重试、缺项定向补请求、429 停止、并发预算、字符拆批、深层目录、用量及 184 文件场景 | F04、F10、F11 |
+| `CacheSafetyTest`（1 项） | 缓存目录符号链接不读写根目录外文件 | F06、F13 |
+| `GroupCacheTest`（14 项） | 24 文件组与异类回退、预算、缓存失效、冲突、无效响应不缓存、同大小文本改写、组响应歧义、组回退缓存、分析期间文件变化、符号链接及执行前复核 | F06、F12、F13 |
 
-源码：[FileTidyingAssistantTest](../src/test/java/com/example/tidying/FileTidyingAssistantTest.java)、[TidyingScenarioTest](../src/test/java/com/example/tidying/TidyingScenarioTest.java)、[EfficientPlanningTest](../src/test/java/com/example/tidying/EfficientPlanningTest.java)。这些测试验证程序行为，不证明第三方服务的可用性、分类质量或性能。
+源码：[FileTidyingAssistantTest](../src/test/java/com/example/tidying/FileTidyingAssistantTest.java)、[TidyingScenarioTest](../src/test/java/com/example/tidying/TidyingScenarioTest.java)、[EfficientPlanningTest](../src/test/java/com/example/tidying/EfficientPlanningTest.java)、[GroupCacheTest](../src/test/java/com/example/tidying/GroupCacheTest.java)、[CacheSafetyTest](../src/test/java/com/example/tidying/CacheSafetyTest.java)。这些测试验证程序行为，不证明第三方服务的可用性、分类质量或性能。
 
 针对性验证：旧实现的 10 文件无效响应场景产生 11 次请求，新实现限制为 2 次。184 文件合成场景中，180 个明确命名的照片由规则处理，4 个未知文本发 1 次模拟请求，全部生成计划；本地一次观测约 0.35 秒（含稳定性等待）。旧批量算法在同规模下正常需 19 次请求，这是按批量大小推算，未做真实 AI 对比测速。
 
@@ -47,7 +49,9 @@ Windows 使用 `mvnw.cmd`。IDEA 中可在 Maven 面板运行 `verify`，或运�
 3. 输入 `APPLY`，确认文件移动到计划位置，内容不变；`Temp`、`Unsorted` 为空时删除，`Inbox` 和隐藏文件保留。
 4. 执行 `java -jar target/bei-file-tidying-0.2.0.jar --undo-last`，确认 4 个文件回到原位、原目录恢复、本次新建且已空的目录被清理。
 
-本轮人工验证（2026-09-26 11:05）：第三方 FHL Responses 接口、`gpt-6-luna` / `medium`。3 个文件命中本地规则；笔记先发元数据，模型要求后补充摘要，共 2 次 HTTP 200，输入提示词合计 1,863 字符，分析耗时 17.8 秒。笔记建议新建 `Work/Java Project`。确认后移动 4 文件、清理 2 个空目录；撤销后全部路径、目录树及文件 SHA-256 与测试前一致。
+上轮人工验证（2026-09-26 11:05）：第三方 FHL Responses 接口、`gpt-6-luna` / `medium`。3 个文件命中本地规则；笔记先发元数据，模型要求后补充摘要，共 2 次 HTTP 200，输入提示词合计 1,863 字符，分析耗时 17.8 秒。笔记建议新建 `Work/Java Project`。确认后移动 4 文件、清理 2 个空目录；撤销后全部路径、目录树及文件 SHA-256 与测试前一致。
+
+本轮复测（2026-09-26 11:49）：`--refresh` 后 4 文件生成计划，2 次 HTTP 200，分析耗时 41.2 秒；执行和撤销后 4 个文件的 SHA-256 与原目录一致。再次分析命中 1 条 AI 缓存，0 次请求，耗时 0.3 秒。服务响应时间有波动，缓存收益仅对应重复分析。
 
 平台本次回报的 token 数均为 0，按未知用量处理，无法量化费用节省。小样本的两阶段判断可能增加请求次数；184 文件合成结果不能外推为真实混合资料的分类准确率或耗时保证。
 
@@ -56,7 +60,7 @@ Windows 使用 `mvnw.cmd`。IDEA 中可在 Maven 面板运行 `verify`，或运�
 | 优先级 | 待补范围 | 通过标准 |
 | --- | --- | --- |
 | P0 | CLI 确认、取消、EOF；同名冲突及部分移动失败 | 未确认不移动，不覆盖既有文件，失败原因明确 |
-| P0 | 符号链接、隐藏父目录、无效 JSON；历史损坏和撤销冲突 | 不越界，不误执行，不丢失文件，未恢复项可追踪 |
+| P0 | 并发替换路径、隐藏父目录、复杂无效 JSON；历史损坏和撤销冲突 | 不越界，不误执行，不丢失文件，未恢复项可追踪 |
 | P1 | 超时、403、持续 5xx、重复源路径及复杂畸形响应 | 补齐现有重试、停止条件和解析的异常覆盖 |
 | P1 | 10 / 50 / 184 文件的真实混合资料对比 | 记录分类质量、耗时、请求数及有效 token 用量，再制定性能目标 |
 

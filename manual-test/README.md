@@ -11,7 +11,7 @@
 
 `Inbox/.hidden-test-file` 用于验证隐藏文件被跳过。macOS 若生成 `.DS_Store`，同样会被跳过；这类系统文件不会提交到 Git。
 
-在 IntelliJ IDEA 中，以 `com.example.tidying.FileTidyingAssistant` 为主类创建 Application 配置，工作目录设为 `$PROJECT_DIR$`，使用 JDK 17 或更新版本。运行后先检查目录树和整理计划，确认后输入 `APPLY`。在这套初始结构中，发票、备份、照片由本地规则处理；笔记进入 AI 元数据分类，模型可要求一次内容补充，也可建议新建合理目录。检查终端的分流、请求及用量统计；实际请求次数随模型结果变化。
+在 IntelliJ IDEA 中，以 `com.example.tidying.FileTidyingAssistant` 为主类创建 Application 配置，工作目录设为 `$PROJECT_DIR$`，使用 JDK 17 或更新版本。运行后先检查目录树和整理计划，确认后输入 `APPLY`。在这套初始结构中，发票、备份、照片由本地规则处理；笔记进入 AI 元数据分类，模型可要求一次内容补充，也可建议新建合理目录。检查终端的分流、请求及用量统计；实际请求次数随模型结果变化。撤销后再次运行通常会复用有效建议；要重新向模型询问，可给启动参数加 `--refresh`。
 
 整理后，从项目根目录执行以下命令即可撤销，不会再请求 AI：
 
