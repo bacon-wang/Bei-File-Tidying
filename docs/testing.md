@@ -14,7 +14,7 @@ Windows 使用 `mvnw.cmd`。IDEA 中可在 Maven 面板运行 `verify`，或运�
 
 ## 2. 自动化覆盖
 
-本轮自动化结果：**29 项通过，0 失败，0 错误**；真实 AI 整理和撤销验证见下文。
+本轮自动化结果：**33 项通过，0 失败，0 错误**；真实 AI 整理和撤销验证见下文。
 
 | 用例 | 已验证内容 | 对应需求 |
 | --- | --- | --- |
@@ -25,9 +25,10 @@ Windows 使用 `mvnw.cmd`。IDEA 中可在 Maven 面板运行 `verify`，或运�
 | `smallMessyFolderIsPlannedAndTidied` | 4 文件仅发 1 次模拟请求、分类移动、隐藏文件保留、空目录删除及撤销 | F03、F04、F07、F08 |
 | `EfficientPlanningTest`（9 项） | 本地分流、元数据不含正文、按需摘要、无效响应有限重试、缺项定向补请求、429 停止、并发预算、字符拆批、深层目录、用量及 184 文件场景 | F04、F10、F11 |
 | `CacheSafetyTest`（1 项） | 缓存目录符号链接不读写根目录外文件 | F06、F13 |
+| `HistorySafetyTest`（4 项） | 历史目录与源目录被符号链接替换时，整理和撤销不读写根目录外文件 | F06、F08 |
 | `GroupCacheTest`（14 项） | 24 文件组与异类回退、预算、缓存失效、冲突、无效响应不缓存、同大小文本改写、组响应歧义、组回退缓存、分析期间文件变化、符号链接及执行前复核 | F06、F12、F13 |
 
-源码：[FileTidyingAssistantTest](../src/test/java/com/example/tidying/FileTidyingAssistantTest.java)、[TidyingScenarioTest](../src/test/java/com/example/tidying/TidyingScenarioTest.java)、[EfficientPlanningTest](../src/test/java/com/example/tidying/EfficientPlanningTest.java)、[GroupCacheTest](../src/test/java/com/example/tidying/GroupCacheTest.java)、[CacheSafetyTest](../src/test/java/com/example/tidying/CacheSafetyTest.java)。这些测试验证程序行为，不证明第三方服务的可用性、分类质量或性能。
+源码：[FileTidyingAssistantTest](../src/test/java/com/example/tidying/FileTidyingAssistantTest.java)、[TidyingScenarioTest](../src/test/java/com/example/tidying/TidyingScenarioTest.java)、[EfficientPlanningTest](../src/test/java/com/example/tidying/EfficientPlanningTest.java)、[GroupCacheTest](../src/test/java/com/example/tidying/GroupCacheTest.java)、[CacheSafetyTest](../src/test/java/com/example/tidying/CacheSafetyTest.java)、[HistorySafetyTest](../src/test/java/com/example/tidying/HistorySafetyTest.java)。这些测试验证程序行为，不证明第三方服务的可用性、分类质量或性能。
 
 针对性验证：旧实现的 10 文件无效响应场景产生 11 次请求，新实现限制为 2 次。184 文件合成场景中，180 个明确命名的照片由规则处理，4 个未知文本发 1 次模拟请求，全部生成计划；本地一次观测约 0.35 秒（含稳定性等待）。旧批量算法在同规模下正常需 19 次请求，这是按批量大小推算，未做真实 AI 对比测速。
 
@@ -52,6 +53,8 @@ Windows 使用 `mvnw.cmd`。IDEA 中可在 Maven 面板运行 `verify`，或运�
 上轮人工验证（2026-09-26 11:05）：第三方 FHL Responses 接口、`gpt-6-luna` / `medium`。3 个文件命中本地规则；笔记先发元数据，模型要求后补充摘要，共 2 次 HTTP 200，输入提示词合计 1,863 字符，分析耗时 17.8 秒。笔记建议新建 `Work/Java Project`。确认后移动 4 文件、清理 2 个空目录；撤销后全部路径、目录树及文件 SHA-256 与测试前一致。
 
 本轮复测（2026-09-26 11:49）：`--refresh` 后 4 文件生成计划，2 次 HTTP 200，分析耗时 41.2 秒；执行和撤销后 4 个文件的 SHA-256 与原目录一致。再次分析命中 1 条 AI 缓存，0 次请求，耗时 0.3 秒。服务响应时间有波动，缓存收益仅对应重复分析。
+
+路径加固复测（2026-09-26 12:24）：`--refresh` 后 2 次 HTTP 200，分析耗时 38.8 秒；4 个文件整理、清理 2 个空目录后执行 `--undo-last`，文件 SHA-256 和目录清单均与运行前一致。
 
 平台本次回报的 token 数均为 0，按未知用量处理，无法量化费用节省。小样本的两阶段判断可能增加请求次数；184 文件合成结果不能外推为真实混合资料的分类准确率或耗时保证。
 

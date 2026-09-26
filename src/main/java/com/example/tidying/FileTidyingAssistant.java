@@ -961,11 +961,12 @@ public final class FileTidyingAssistant {
         if (root != null) {
           Path source = plan.source().toAbsolutePath().normalize();
           Path destination = plan.target().toAbsolutePath().normalize();
-          if (!source.startsWith(target) || Files.isSymbolicLink(source)
+          if (!source.startsWith(target) || safeHistoryPath(root, relative(root, source)) == null
               || resolveDestination(relative(root, destination.getParent()), root, target) == null
               || Files.exists(destination, LinkOption.NOFOLLOW_LINKS)) {
             throw new IOException("源文件或目标路径已变化，请重新生成计划");
           }
+          checkHistoryPath(history, true);
         }
         status("正在创建目标目录并移动: " + plan.target());
         List<Path> newDirectories = missingDirectories(root, plan.target().getParent());
@@ -1057,14 +1058,25 @@ public final class FileTidyingAssistant {
   }
 
   static Path safeHistoryPath(Path root, String relativePath) {
-    if (relativePath == null || relativePath.isBlank()) return null;
-    Path normalizedRoot = root.toAbsolutePath().normalize();
-    Path candidate = normalizedRoot.resolve(relativePath.replace('\\', '/')).normalize();
-    return candidate.startsWith(normalizedRoot) && !candidate.equals(normalizedRoot) ? candidate : null;
+    try { return resolveDestination(relativePath, root.toAbsolutePath().normalize(), root); }
+    catch (IllegalArgumentException e) { return null; }
+  }
+
+  private static void checkHistoryPath(Path file, boolean create) throws IOException {
+    for (Path directory : List.of(file.getParent().getParent(), file.getParent())) {
+      if (create && Files.notExists(directory, LinkOption.NOFOLLOW_LINKS)) Files.createDirectory(directory);
+      if (!Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS)) {
+        throw new IOException("历史记录目录不是普通目录: " + directory);
+      }
+    }
+    if (Files.exists(file, LinkOption.NOFOLLOW_LINKS)
+        && !Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
+      throw new IOException("历史记录文件不是普通文件: " + file);
+    }
   }
 
   static void writeHistory(Path file, History history) throws IOException {
-      Files.createDirectories(file.getParent());
+      checkHistoryPath(file, true);
       StringBuilder json = new StringBuilder("{\"version\":2,\"undone\":")
           .append(history.undone()).append(",\"moved\":[");
       for (int i = 0; i < history.moved().size(); i++) {
@@ -1173,6 +1185,7 @@ public final class FileTidyingAssistant {
   }
 
   static History readHistory(Path file) throws IOException {
+    checkHistoryPath(file, false);
     String json = Files.readString(file, StandardCharsets.UTF_8);
     boolean undone = Boolean.TRUE.equals(extractBoolean(json, "undone"));
     List<MoveRecord> moved = new ArrayList<>();
