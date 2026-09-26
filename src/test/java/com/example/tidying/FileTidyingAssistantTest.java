@@ -56,7 +56,7 @@ class FileTidyingAssistantTest {
     var config = new FileTidyingAssistant.Config(root, target, 10_000, "", "", "gpt-6-luna", "medium", "responses");
     var directories = FileTidyingAssistant.existingDirectories(root, target);
 
-    var imagePlan = FileTidyingAssistant.plan(image, config, root, directories, FileTidyingAssistant.structure(root));
+    var imagePlan = FileTidyingAssistant.plan(image, config, root, directories);
     assertEquals("READY", imagePlan.status());
     assertEquals(pictures.resolve("holiday.jpg"), imagePlan.target());
     assertEquals(2, FileTidyingAssistant.targetFiles(target).size());
@@ -67,7 +67,7 @@ class FileTidyingAssistantTest {
 
     Path pdf = target.resolve("report.pdf");
     Files.writeString(pdf, "pdf");
-    var newFolderPlan = FileTidyingAssistant.plan(pdf, config, root, directories, FileTidyingAssistant.structure(root));
+    var newFolderPlan = FileTidyingAssistant.plan(pdf, config, root, directories);
     assertEquals("READY", newFolderPlan.status());
     assertEquals(root.resolve("Documents/report.pdf"), newFolderPlan.target());
     FileTidyingAssistant.execute(List.of(newFolderPlan));
@@ -87,7 +87,9 @@ class FileTidyingAssistantTest {
     server.createContext("/responses", exchange -> {
       boolean unauthorized = "Bearer bad".equals(exchange.getRequestHeaders().getFirst("Authorization"));
       int status = unauthorized ? 401 : 200;
-      String response = unauthorized ? "{}" : "data: {\"type\":\"response.output_text.delta\",\"delta\":\"{\\\"destination\\\":\\\"Pictures\\\",\\\"createDirectory\\\":false,\\\"reason\\\":\\\"已有图片目录\\\"}\"}\n\ndata: {\"type\":\"response.output_text.done\",\"text\":\"{\\\"destination\\\":\\\"Pictures\\\",\\\"createDirectory\\\":false,\\\"reason\\\":\\\"已有图片目录\\\"}\"}\n\ndata: {\"type\":\"response.completed\"}\n\n";
+      String answer = EfficientPlanningTest.answer("Downloads/holiday.jpg", "Pictures", false);
+      String response = unauthorized ? "{}" : "data: {\"type\":\"response.output_text.done\",\"text\":\""
+          + FileTidyingAssistant.escape(answer) + "\"}\n\n";
       byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
       exchange.sendResponseHeaders(status, bytes.length);
       try (OutputStream output = exchange.getResponseBody()) { output.write(bytes); }
@@ -96,11 +98,12 @@ class FileTidyingAssistantTest {
     try {
       String baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
       var aiConfig = new FileTidyingAssistant.Config(root, target, 10_000, baseUrl, "good", "gpt-6-luna", "medium", "responses");
-      var aiResult = FileTidyingAssistant.classify(image, aiConfig, root, directories, FileTidyingAssistant.structure(root));
-      assertEquals("Pictures", aiResult.destination());
+      var aiResult = FileTidyingAssistant.plan(image, aiConfig, root, directories);
+      assertEquals("READY", aiResult.status());
+      assertEquals(root.resolve("Pictures/holiday.jpg"), aiResult.target());
 
       var badConfig = new FileTidyingAssistant.Config(root, target, 10_000, baseUrl, "bad", "gpt-6-luna", "medium", "responses");
-      var badPlan = FileTidyingAssistant.plan(image, badConfig, root, directories, "Pictures/\n");
+      var badPlan = FileTidyingAssistant.plan(image, badConfig, root, directories);
       assertEquals("FAILED", badPlan.status());
       assertTrue(badPlan.reason().contains("401"));
     } finally {

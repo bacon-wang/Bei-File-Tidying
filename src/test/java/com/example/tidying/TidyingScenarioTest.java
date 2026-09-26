@@ -61,11 +61,10 @@ class TidyingScenarioTest {
       var config = new FileTidyingAssistant.Config(root, target, 10_000,
           "http://127.0.0.1:" + server.getAddress().getPort(), "test-key", "gpt-6-luna", "medium", "responses");
       var directories = FileTidyingAssistant.existingDirectories(root, target);
-      String structure = FileTidyingAssistant.structure(root);
       List<Path> files = FileTidyingAssistant.targetFiles(target);
       assertEquals(4, files.size(), "隐藏文件不应进入整理计划");
 
-      List<FileTidyingAssistant.Plan> plans = FileTidyingAssistant.planAll(files, config, root, directories, structure);
+      List<FileTidyingAssistant.Plan> plans = FileTidyingAssistant.planAll(files, config, root, directories);
       assertEquals(1, requests.get(), "同一批文件应只发送一次 AI 请求");
       assertEquals(4, plans.stream().filter(p -> "READY".equals(p.status())).count());
       assertTrue(plans.stream().anyMatch(p -> p.target().equals(root.resolve("Pictures/trip-photo.png"))));

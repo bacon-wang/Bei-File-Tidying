@@ -9,4 +9,6 @@ ai.reasoning-effort=medium
 ai.wire-api=responses
 ai.batch-size=10
 ai.batch-concurrency=2
+ai.max-requests=20
+ai.max-prompt-chars=12000
 tidy.delete-empty-directories=true
