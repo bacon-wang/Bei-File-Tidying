@@ -2,6 +2,13 @@
 
 Bei File Tidying 感知一个根目录的文件夹结构，把目标文件夹中的文件按 AI 建议批量整理到位。
 
+## 项目文档
+
+- [需求文档](docs/requirements.md)：目标、范围与验收标准。
+- [架构文档](docs/architecture.md)：实际结构、数据流与实现边界。
+- [测试文档](docs/testing.md)：已验证内容、复现步骤与待补测试。
+- [整体项目计划](docs/project-plan.md)：阶段成果、优先级与交付门槛。
+
 ## 快速开始
 
 需要 JDK 17 或更新版本。项目自带 Maven Wrapper，无需单独安装 Maven。在项目根目录执行：
